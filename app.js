@@ -16,8 +16,40 @@ function safe(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&
 function datePlusDays(date,n){const d=new Date(date+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
 function formatDate(s){if(!s)return "sem validade";return new Date(s+"T12:00:00").toLocaleDateString("pt-BR")}
 function normalize(s){return String(s||"").trim().toLocaleLowerCase("pt-BR")}
-function parseIngredients(text){return text.split("\n").map(line=>line.trim()).filter(Boolean).map(line=>{const p=line.split("|").map(x=>x.trim());return {name:p[0],quantity:Number(p[1])||0,unit:p[2]||"un"}})}
-function ingredientText(items){return items.map(i=>`${i.name} | ${i.quantity} | ${i.unit}`).join("\n")}
+function parseIngredientOption(text){
+const p=text.split("|").map(x=>x.trim());
+return {name:p[0]||"",quantity:Number(p[1])||0,unit:p[2]||"un"};
+}
+ 
+function parseIngredients(text){
+return text.split("\n").map(line=>line.trim()).filter(Boolean).map(line=>{
+  const options=line.split(/\s+OU\s+/i).map(parseIngredientOption).filter(x=>x.name);
+  return options.length>1?{type:"alternative",options}:options[0];
+}).filter(Boolean);
+}
+ 
+function ingredientText(items){
+return items.map(i=>{
+  if(i.type==="alternative"&&Array.isArray(i.options)){
+   return i.options.map(o=>`${o.name} | ${o.quantity} | ${o.unit}`).join(" OU ");
+  }
+  return `${i.name} | ${i.quantity} | ${i.unit}`;
+}).join("\n");
+}
+ 
+function ingredientLabel(i){
+if(i.type==="alternative"&&Array.isArray(i.options)){
+  return i.options.map(o=>`${o.name} — ${o.quantity} ${o.unit}`).join(" OU ");
+}
+return `${i.name} — ${i.quantity} ${i.unit}`;
+}
+ 
+function chosenIngredient(recipe,item,index){
+if(item.type!=="alternative"||!Array.isArray(item.options)||!item.options.length)return item;
+const key=`${recipe.id}-${index}`;
+const choice=Number(state.ingredientChoices[key]??0);
+return item.options[Math.min(Math.max(choice,0),item.options.length-1)];
+}
 function todayISO(){return new Date().toISOString().slice(0,10)}
 function weekMonday(date){const d=new Date(date+"T12:00:00");const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return d.toISOString().slice(0,10)}
 
