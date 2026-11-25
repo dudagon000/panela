@@ -64,4 +64,29 @@ function renderShopping(){const totals=new Map();getSelectedRecipes().forEach(r=
 $("refresh-shopping").onclick=()=>{renderShopping();toast("Lista atualizada.")};
 $("copy-shopping").onclick=async()=>{const text=state.shopping.map(i=>`[ ] ${i.name}: ${i.missing} ${i.unit}`).join("\n");if(!text){toast("Sua lista está vazia.");return}try{await navigator.clipboard.writeText(text);toast("Lista copiada!")}catch{toast("Não foi possível copiar neste navegador.")}};
 function renderPrep(){const recipes=getSelectedRecipes();const counts=new Map();recipes.forEach(r=>(r.ingredients||[]).forEach(i=>{const k=normalize(i.name);const v=counts.get(k)||{name:i.name,count:0,recipes:[]};v.count++;v.recipes.push(r.name);counts.set(k,v)}));const shared=[...counts.values()].filter(x=>x.count>1);const soon=state.pantry.filter(x=>x.expiry_date&&Math.ceil((new Date(x.expiry_date+"T12:00:00")-new Date(todayISO()+"T12:00:00"))/86400000)<=3);const el=$("prep-content");el.innerHTML=`<article class="prep-card"><h3>Ingredientes em comum</h3>${shared.length?shared.map(x=>`<p><b>${safe(x.name)}</b> aparece em ${x.count} preparos: ${x.recipes.map(safe).join(", ")}. Considere higienizar, cortar ou porcionar tudo de uma vez.</p>`).join("<hr>"):'<p>Quando houver receitas selecionadas com ingredientes repetidos, eles aparecerão aqui.</p>'}</article><article class="prep-card"><h3>Use antes que vença</h3>${soon.length?soon.map(x=>`<p><b>${safe(x.name)}</b> — ${formatDate(x.expiry_date)}. Tente incluir esse ingrediente nas próximas refeições.</p>`).join(""):'<p>Nenhum ingrediente cadastrado com vencimento nos próximos três dias. Que beleza! ♡</p>'}</article><article class="prep-card"><h3>Ideias para adiantar</h3><p>• Lave e seque folhas de uma vez, guardando-as bem fechadas.</p><p>• Separe temperos e porções de proteínas antes de cozinhar.</p><p>• Aproveite o mesmo corte de legumes em mais de uma receita.</p></article>`}
-document.addEventListener("DOMContentLoaded",authInit);
+function initNavigation() {
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const target = tab.dataset.view;
+ 
+      document.querySelectorAll(".tab").forEach(item => {
+        item.classList.toggle("active", item === tab);
+      });
+ 
+      document.querySelectorAll(".view").forEach(view => {
+        view.classList.toggle(
+          "hidden",
+          view.id !== `view-${target}`
+        );
+      });
+ 
+      if (target === "shopping") renderShopping();
+      if (target === "prep") renderPrep();
+    });
+  });
+}
+ 
+document.addEventListener("DOMContentLoaded", () => {
+  initNavigation();
+  authInit();
+});
