@@ -5,8 +5,8 @@ const SUPABASE_ANON_KEY = "sb_publishable_-KSIuhE8hXfGPb5fyTtNyw_0AnClY59";
 const configured = SUPABASE_URL.startsWith("https://") && !SUPABASE_ANON_KEY.includes("COLE_AQUI");
 const db = configured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const $ = (id) => document.getElementById(id);
-const state = { user:null, pantry:[], recipes:[], plan:{}, weekStart:"", shopping:[] };
-const days = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
+ const state = { user:null, pantry:[], recipes:[], plan:{}, weekStart:"", shopping:[], ingredientChoices:{} };
+ const days = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
 const categories = ["proteínas","acompanhamento","legumes","lanches"];
 let toastTimer;
 
@@ -82,21 +82,134 @@ function resetRecipeForm(){$("recipe-form").reset();$("recipe-id").value="";$("r
 $("recipe-cancel").onclick=resetRecipeForm;
 function editRecipe(id){const r=state.recipes.find(x=>x.id===id);if(!r)return;$("recipe-id").value=r.id;$("recipe-name").value=r.name;$("recipe-category").value=r.category;$("recipe-difficulty").value=r.difficulty;$("recipe-servings").value=r.servings;$("recipe-ingredients").value=ingredientText(r.ingredients||[]);$("recipe-method").value=r.method;$("recipe-save").textContent="Salvar alterações";$("recipe-cancel").classList.remove("hidden");window.scrollTo({top:0,behavior:"smooth"})}
 async function deleteRecipe(id){if(!confirm("Excluir esta receita do caderninho?"))return;const {error}=await db.from("recipes").delete().eq("id",id);if(error){toast(error.message);return}await loadRecipes();await loadPlan();renderAll();toast("Receita excluída.")}
-function renderRecipes(){const el=$("recipe-list");if(!state.recipes.length){el.innerHTML='<div class="empty-state">Seu caderninho ainda está em branco. Cadastre a primeira receita ali em cima! 🍓</div>';return}el.innerHTML=state.recipes.map(r=>`<article class="recipe-card"><div class="card-top"><h3>${safe(r.name)}</h3><span class="tag">${safe(r.category)}</span></div><div class="recipe-tags"><span class="tag green">${safe(r.difficulty)}</span><span class="tag">${r.servings} porções</span></div><div class="ingredient-preview">${(r.ingredients||[]).map(i=>`• ${safe(i.name)} — ${safe(i.quantity)} ${safe(i.unit)}`).join("\n")}</div><details><summary class="mini-btn">Ver preparo</summary><p class="muted" style="white-space:pre-line;margin-top:10px">${safe(r.method)}</p></details><div class="recipe-actions"><button class="mini-btn" data-edit="${r.id}">Editar</button><button class="mini-btn" data-delete-recipe="${r.id}">Excluir</button></div></article>`).join("");el.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editRecipe(b.dataset.edit));el.querySelectorAll("[data-delete-recipe]").forEach(b=>b.onclick=()=>deleteRecipe(b.dataset.deleteRecipe))}
-
+ 
+function renderRecipes(){
+ const el=$("recipe-list");
+ if(!state.recipes.length){el.innerHTML='<div class="empty-state">Seu caderninho ainda está em branco. Cadastre a primeira receita ali em cima! 🍓</div>';return}
+ el.innerHTML=state.recipes.map(r=>`<article class="recipe-card"><div class="card-top"><h3>${safe(r.name)}</h3><span class="tag">${safe(r.category)}</span></div><div class="recipe-tags"><span class="tag green">${safe(r.difficulty)}</span><span class="tag">${r.servings} porções</span></div><div class="ingredient-preview">${(r.ingredients||[]).map(i=>`• ${safe(ingredientLabel(i))}`).join("\n")}</div><details><summary class="mini-btn">Ver preparo</summary><p class="muted" style="white-space:pre-line;margin-top:10px">${safe(r.method)}</p></details><div class="recipe-actions"><button class="mini-btn" data-edit="${r.id}">Editar</button><button class="mini-btn" data-delete-recipe="${r.id}">Excluir</button></div></article>`).join("");
+ el.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editRecipe(b.dataset.edit));
+ el.querySelectorAll("[data-delete-recipe]").forEach(b=>b.onclick=()=>deleteRecipe(b.dataset.deleteRecipe));
+}
+ 
 function mealSlots(){const slots=[];for(let d=0;d<5;d++){slots.push({d,type:"almoço",label:"Almoço"});slots.push({d,type:"jantar",label:"Jantar"})}slots.push({d:5,type:"almoço",label:"Almoço"},{d:5,type:"jantar",label:"Lanche"},{d:6,type:"almoço",label:"Almoço"},{d:6,type:"jantar",label:"Lanche"});return slots}
 function recipeOptions(slot){let allowed=slot.label==="Lanche"?["lanches"]:categories.filter(c=>c!=="lanches");return state.recipes.filter(r=>allowed.includes(r.category))}
 function renderPlanner(){const el=$("planner-grid");if(!$("week-start").value)$("week-start").value=weekMonday(todayISO());const start=$("week-start").value;state.weekStart=start;el.innerHTML=days.map((day,d)=>{const slots=mealSlots().filter(s=>s.d===d);return `<article class="day-card"><div class="day-title">${day} · ${formatDate(datePlusDays(start,d))}</div>${slots.map(s=>{const key=`${d}-${s.type}`,options=recipeOptions(s),selected=state.plan[key]||"";return `<div class="meal-row"><label>${s.label}</label><select data-slot="${key}"><option value="">— escolher receita —</option>${options.map(r=>`<option value="${r.id}" ${selected===r.id?"selected":""}>${safe(r.name)}</option>`).join("")}</select></div>`}).join("")}</article>`}).join("");el.querySelectorAll("[data-slot]").forEach(sel=>sel.onchange=()=>{state.plan[sel.dataset.slot]=sel.value;renderShopping();renderPrep()})}
 $("week-start").addEventListener("change",async()=>{await loadPlan();renderPlanner();renderShopping();renderPrep()});
-$("generate-plan").onclick=()=>{const slots=mealSlots();const pool=state.recipes; if(!pool.length){toast("Cadastre algumas receitas primeiro.");return}const pantryNames=new Set(state.pantry.map(x=>normalize(x.name)));const score=r=>(r.ingredients||[]).filter(i=>pantryNames.has(normalize(i.name))).length;const choose=(arr)=>arr.slice().sort((a,b)=>score(b)-score(a))[0];const used={};slots.forEach(s=>{const key=`${s.d}-${s.type}`;const opts=recipeOptions(s);if(opts.length){const ranked=opts.slice().sort((a,b)=>score(b)-score(a));const choice=ranked.find(r=>(used[r.id]||0)<(r.category==="proteínas"?2:3))||ranked[0];state.plan[key]=choice.id;used[choice.id]=(used[choice.id]||0)+1}});renderPlanner();renderShopping();renderPrep();toast("Sugestão montada priorizando o que você já tem! ♡")};
+$("generate-plan").onclick=()=>{const slots=mealSlots();const pool=state.recipes; if(!pool.length){toast("Cadastre algumas receitas primeiro.");return}const pantryNames=new Set(state.pantry.map(x=>normalize(x.name)));const score=r=>(r.ingredients||[]).filter(i=>i.type==="alternative"?(i.options||[]).some(o=>pantryNames.has(normalize(o.name)))
+:pantryNames.has(normalize(i.name))
+).length;;const choose=(arr)=>arr.slice().sort((a,b)=>score(b)-score(a))[0];const used={};slots.forEach(s=>{const key=`${s.d}-${s.type}`;const opts=recipeOptions(s);if(opts.length){const ranked=opts.slice().sort((a,b)=>score(b)-score(a));const choice=ranked.find(r=>(used[r.id]||0)<(r.category==="proteínas"?2:3))||ranked[0];state.plan[key]=choice.id;used[choice.id]=(used[choice.id]||0)+1}});renderPlanner();renderShopping();renderPrep();toast("Sugestão montada priorizando o que você já tem! ♡")};
 $("save-plan").onclick=async()=>{const start=$("week-start").value;const rows=mealSlots().filter(s=>state.plan[`${s.d}-${s.type}`]).map(s=>({user_id:state.user.id,week_start:start,day_index:s.d,meal_type:s.type,recipe_id:state.plan[`${s.d}-${s.type}`]}));const {error:delError}=await db.from("meal_plans").delete().eq("week_start",start);if(delError){toast(delError.message);return}if(rows.length){const {error}=await db.from("meal_plans").insert(rows);if(error){toast(error.message);return}}toast("Cardápio salvo! ♡")};
 
 function getSelectedRecipes(){const ids=Object.values(state.plan).filter(Boolean);return ids.map(id=>state.recipes.find(r=>r.id===id)).filter(Boolean)}
-function renderShopping(){const totals=new Map();getSelectedRecipes().forEach(r=>(r.ingredients||[]).forEach(i=>{const key=normalize(i.name)+"|"+normalize(i.unit);const old=totals.get(key)||{name:i.name,quantity:0,unit:i.unit};old.quantity+=Number(i.quantity)||0;totals.set(key,old)}));const pantry=new Map();state.pantry.forEach(i=>{const k=normalize(i.name);pantry.set(k,(pantry.get(k)||0)+(Number(i.quantity)||0))});state.shopping=[...totals.values()].filter(i=>(pantry.get(normalize(i.name))||0)<i.quantity).map(i=>({...i,missing:Math.max(0,i.quantity-(pantry.get(normalize(i.name))||0))}));const el=$("shopping-list");if(!state.shopping.length){el.innerHTML='<div class="empty-state">Sua lista está vazia por enquanto. Monte um cardápio e confira o que falta. 🛒</div>';return}el.innerHTML=state.shopping.map(i=>`<label class="shopping-row"><input type="checkbox"><span>${safe(i.name)}</span><small>${i.missing} ${safe(i.unit)} faltando</small></label>`).join("")}
-$("refresh-shopping").onclick=()=>{renderShopping();toast("Lista atualizada.")};
-$("copy-shopping").onclick=async()=>{const text=state.shopping.map(i=>`[ ] ${i.name}: ${i.missing} ${i.unit}`).join("\n");if(!text){toast("Sua lista está vazia.");return}try{await navigator.clipboard.writeText(text);toast("Lista copiada!")}catch{toast("Não foi possível copiar neste navegador.")}};
-function renderPrep(){const recipes=getSelectedRecipes();const counts=new Map();recipes.forEach(r=>(r.ingredients||[]).forEach(i=>{const k=normalize(i.name);const v=counts.get(k)||{name:i.name,count:0,recipes:[]};v.count++;v.recipes.push(r.name);counts.set(k,v)}));const shared=[...counts.values()].filter(x=>x.count>1);const soon=state.pantry.filter(x=>x.expiry_date&&Math.ceil((new Date(x.expiry_date+"T12:00:00")-new Date(todayISO()+"T12:00:00"))/86400000)<=3);const el=$("prep-content");el.innerHTML=`<article class="prep-card"><h3>Ingredientes em comum</h3>${shared.length?shared.map(x=>`<p><b>${safe(x.name)}</b> aparece em ${x.count} preparos: ${x.recipes.map(safe).join(", ")}. Considere higienizar, cortar ou porcionar tudo de uma vez.</p>`).join("<hr>"):'<p>Quando houver receitas selecionadas com ingredientes repetidos, eles aparecerão aqui.</p>'}</article><article class="prep-card"><h3>Use antes que vença</h3>${soon.length?soon.map(x=>`<p><b>${safe(x.name)}</b> — ${formatDate(x.expiry_date)}. Tente incluir esse ingrediente nas próximas refeições.</p>`).join(""):'<p>Nenhum ingrediente cadastrado com vencimento nos próximos três dias. Que beleza! ♡</p>'}</article><article class="prep-card"><h3>Ideias para adiantar</h3><p>• Lave e seque folhas de uma vez, guardando-as bem fechadas.</p><p>• Separe temperos e porções de proteínas antes de cozinhar.</p><p>• Aproveite o mesmo corte de legumes em mais de uma receita.</p></article>`}
-function initNavigation() {
+function renderShopping(){
+const totals=new Map();
+const alternatives=[];
+const alternativeKeys=new Set();
+ 
+getSelectedRecipes().forEach(r=>(r.ingredients||[]).forEach((item,index)=>{
+  let ingredient=item;
+ 
+  if(item.type==="alternative"&&Array.isArray(item.options)&&item.options.length){
+   const key=`${r.id}-${index}`;
+   const selected=chosenIngredient(r,item,index);
+ 
+   if(!alternativeKeys.has(key)){
+    alternatives.push({key,recipeName:r.name,options:item.options,selected});
+    alternativeKeys.add(key);
+   }
+   ingredient=selected;
+  }
+ 
+  if(!ingredient||!ingredient.name)return;
+ 
+  const key=normalize(ingredient.name)+"|"+normalize(ingredient.unit);
+  const old=totals.get(key)||{name:ingredient.name,quantity:0,unit:ingredient.unit};
+  old.quantity+=Number(ingredient.quantity)||0;
+  totals.set(key,old);
+}));
+ 
+const pantry=new Map();
+state.pantry.forEach(i=>{
+  const k=normalize(i.name);
+  pantry.set(k,(pantry.get(k)||0)+(Number(i.quantity)||0));
+});
+ 
+state.shopping=[...totals.values()]
+  .filter(i=>(pantry.get(normalize(i.name))||0)<i.quantity)
+  .map(i=>({...i,missing:Math.max(0,i.quantity-(pantry.get(normalize(i.name))||0))}));
+ 
+const el=$("shopping-list");
+ 
+const choicesHTML=alternatives.length?
+`<div class="shopping-alternatives">
+  <h3>Escolha as alternativas das receitas</h3>
+  <p class="muted">Em cada grupo com OU, selecione apenas uma opção. Os ingredientes separados em linhas continuam sendo todos obrigatórios.</p>
+  ${alternatives.map(g=>`
+   <label class="shopping-row">
+    <span><b>${safe(g.recipeName)}</b><br><small>Escolha uma opção:</small></span>
+    <select data-ingredient-choice="${safe(g.key)}">
+     ${g.options.map((o,i)=>`
+      <option value="${i}" ${g.selected.name===o.name&&g.selected.unit===o.unit&&g.selected.quantity===o.quantity?"selected":""}>
+       ${safe(o.name)} — ${safe(o.quantity)} ${safe(o.unit)}
+      </option>`).join("")}
+    </select>
+   </label>`).join("")}
+</div>`:"";
+ 
+const listHTML=state.shopping.length?
+state.shopping.map(i=>`
+  <label class="shopping-row">
+   <input type="checkbox">
+   <span>${safe(i.name)}</span>
+   <small>${i.missing} ${safe(i.unit)} faltando</small>
+  </label>`).join("")
+:'<div class="empty-state">Sua lista está vazia por enquanto. Monte um cardápio e confira o que falta. 🛒</div>';
+ 
+el.innerHTML=choicesHTML+listHTML;
+ 
+el.querySelectorAll("[data-ingredient-choice]").forEach(sel=>{
+  sel.onchange=()=>{
+   state.ingredientChoices[sel.dataset.ingredientChoice]=Number(sel.value);
+   renderShopping();
+   renderPrep();
+  };
+});
+}
+function renderPrep(){
+const recipes=getSelectedRecipes();
+const counts=new Map();
+ 
+recipes.forEach(r=>(r.ingredients||[]).forEach((item,index)=>{
+  const i=chosenIngredient(r,item,index);
+  if(!i||!i.name)return;
+ 
+  const k=normalize(i.name);
+  const v=counts.get(k)||{name:i.name,count:0,recipes:[]};
+  v.count++;
+  v.recipes.push(r.name);
+  counts.set(k,v);
+}));
+ 
+const shared=[...counts.values()].filter(x=>x.count>1);
+const soon=state.pantry.filter(x=>x.expiry_date&&Math.ceil((new Date(x.expiry_date+"T12:00:00")-new Date(todayISO()+"T12:00:00"))/86400000)<=3);
+const el=$("prep-content");
+ 
+el.innerHTML=`<article class="prep-card">
+<h3>Ingredientes em comum</h3>
+${shared.length?shared.map(x=>`<p><b>${safe(x.name)}</b> aparece em ${x.count} preparos: ${x.recipes.map(safe).join(", ")}. Considere higienizar, cortar ou porcionar tudo de uma vez.</p>`).join("<hr>"):'<p>Quando houver receitas selecionadas com ingredientes repetidos, eles aparecerão aqui.</p>'}
+</article>
+<article class="prep-card">
+<h3>Use antes que vença</h3>
+${soon.length?soon.map(x=>`<p><b>${safe(x.name)}</b> — ${formatDate(x.expiry_date)}. Tente incluir esse ingrediente nas próximas refeições.</p>`).join(""):'<p>Nenhum ingrediente cadastrado com vencimento nos próximos três dias. Que beleza! ♡</p>'}
+</article>
+<article class="prep-card">
+<h3>Ideias para adiantar</h3>
+<p>• Lave e seque folhas de uma vez, guardando-as bem fechadas.</p>
+<p>• Separe temperos e porções de proteínas antes de cozinhar.</p>
+<p>• Aproveite o mesmo corte de legumes em mais de uma receita.</p>
+</article>`;
+}
+ function initNavigation() {
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       const target = tab.dataset.view;
