@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff7f2">
+  <title>Panelinha — minha cozinha</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Panelinha início">
+        <span class="brand-mark">♡</span>
+        <span><strong>panelinha</strong><small>minha cozinha, meu cantinho</small></span>
+      </a>
+      <div class="top-actions">
+        <span id="user-label" class="user-label"></span>
+        <button id="logout-btn" class="button button-quiet hidden">Sair</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="setup-screen" class="setup-screen hidden">
+        <div class="setup-card">
+          <div class="eyebrow">BEM-VINDA À SUA COZINHA</div>
+          <h1>Um cantinho para organizar suas delícias.</h1>
+          <p>Antes de começar, conecte o projeto ao seu banco gratuito do Supabase. As instruções estão no arquivo <b>LEIA-ME.md</b>.</p>
+          <p class="muted">Depois de preencher as chaves no arquivo <code>app.js</code>, atualize esta página.</p>
+        </div>
+      </section>
+
+      <section id="auth-screen" class="auth-screen hidden">
+        <div class="auth-art">
+          <div class="art-sparkle">✳</div>
+          <div class="art-plate"><span>♡</span></div>
+          <div class="art-leaf">❧</div>
+        </div>
+        <div class="auth-card">
+          <div class="eyebrow">SEU CADERNINHO DIGITAL</div>
+          <h1>Oi, cozinheira! <span>♡</span></h1>
+          <p class="muted">Entre para guardar suas receitas e cuidar da sua geladeira.</p>
+          <form id="auth-form">
+            <label>E-mail<input id="auth-email" type="email" autocomplete="email" placeholder="voce@email.com" required></label>
+            <label>Senha<input id="auth-password" type="password" autocomplete="current-password" minlength="6" placeholder="Pelo menos 6 caracteres" required></label>
+            <button class="button button-primary full" type="submit" id="auth-submit">Entrar</button>
+          </form>
+          <button id="signup-btn" class="text-button">Ainda não tenho conta — criar cadastro</button>
+          <p id="auth-message" class="form-message" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section id="app-screen" class="hidden">
+        <div class="welcome-row">
+          <div><div class="eyebrow">SEU CANTINHO ORGANIZADO</div><h1>O que vamos preparar hoje?</h1><p class="muted">Um pouquinho de planejamento, muito carinho e comida gostosa.</p></div>
+          <div class="welcome-sticker">♡<small>feito com<br> carinho</small></div>
+        </div>
+
+        <nav class="tabs" aria-label="Seções">
+          <button class="tab active" data-view="pantry">🥬 Geladeira</button>
+          <button class="tab" data-view="recipes">📖 Receitas</button>
+          <button class="tab" data-view="planner">🗓️ Cardápio</button>
+          <button class="tab" data-view="shopping">🛒 Compras</button>
+          <button class="tab" data-view="prep">✨ Preparação</button>
+        </nav>
+
+        <section id="view-pantry" class="view">
+          <div class="section-heading"><div><div class="eyebrow">O QUE TEM POR AÍ?</div><h2>Minha geladeira</h2><p class="muted">Cadastre o que você já tem e acompanhe as validades.</p></div><span class="section-emoji">🥑</span></div>
+          <form id="pantry-form" class="inline-form">
+            <label class="grow">Ingrediente<input id="pantry-name" placeholder="Ex.: tomate" required></label>
+            <label>Quantidade<input id="pantry-quantity" type="number" min="0" step="0.1" placeholder="2"></label>
+            <label>Unidade<select id="pantry-unit"><option value="un">un.</option><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="L">L</option><option value="colher">colher(es)</option><option value="xícara">xícara(s)</option><option value="a gosto">a gosto</option></select></label>
+            <label>Validade<input id="pantry-expiry" type="date"></label>
+            <button class="button button-primary" type="submit">Adicionar</button>
+          </form>
+          <div id="pantry-list" class="item-grid"></div>
+        </section>
+
+        <section id="view-recipes" class="view hidden">
+          <div class="section-heading"><div><div class="eyebrow">SEU REPERTÓRIO</div><h2>Meu caderno de receitas</h2><p class="muted">Guarde os pratos que fazem parte da sua rotina.</p></div><span class="section-emoji">🍓</span></div>
+          <form id="recipe-form" class="form-card">
+            <input id="recipe-id" type="hidden">
+            <div class="form-grid">
+              <label class="span-2">Nome da receita<input id="recipe-name" placeholder="Ex.: frango cremoso" required></label>
+              <label>Categoria<select id="recipe-category"><option value="proteínas">Proteínas</option><option value="acompanhamento">Acompanhamento</option><option value="legumes">Legumes</option><option value="lanches">Lanches</option></select></label>
+              <label>Facilidade<select id="recipe-difficulty"><option value="fácil">Fácil</option><option value="intermediário">Intermediário</option><option value="elaborado">Elaborado</option></select></label>
+              <label>Rendimento (porções)<input id="recipe-servings" type="number" min="1" value="2" required></label>
+              <label class="span-2">Ingredientes <small class="muted">(um por linha: ingrediente | quantidade | unidade)</small><textarea id="recipe-ingredients" rows="5" placeholder="peito de frango | 400 | g&#10;alho | 2 | dentes&#10;creme de leite | 1 | caixinha" required></textarea></label>
+              <label class="span-2">Modo de preparo<textarea id="recipe-method" rows="4" placeholder="Conte como preparar..." required></textarea></label>
+            </div>
+            <div class="form-actions"><button class="button button-primary" type="submit" id="recipe-save">Salvar receita</button><button class="button button-quiet hidden" type="button" id="recipe-cancel">Cancelar edição</button></div>
+            <p id="recipe-message" class="form-message"></p>
+          </form>
+          <div id="recipe-list" class="recipe-grid"></div>
+        </section>
+
+        <section id="view-planner" class="view hidden">
+          <div class="section-heading"><div><div class="eyebrow">PLANEJAMENTO SEMANAL</div><h2>Nosso cardápio</h2><p class="muted">Monte a semana e veja o que falta comprar.</p></div><span class="section-emoji">🍝</span></div>
+          <div class="planner-toolbar"><label>Semana de <input id="week-start" type="date"></label><button id="generate-plan" class="button button-secondary">✨ Sugerir cardápio</button><button id="save-plan" class="button button-primary">Salvar cardápio</button></div>
+          <p class="hint">Almoço e jantar de segunda a sexta; almoço no sábado e domingo. Os jantares de sexta, sábado e domingo são sempre lanches. Você pode trocar qualquer sugestão manualmente.</p>
+          <div id="planner-grid" class="planner-grid"></div>
+        </section>
+
+        <section id="view-shopping" class="view hidden">
+          <div class="section-heading"><div><div class="eyebrow">SÓ O QUE ESTÁ FALTANDO</div><h2>Lista de compras</h2><p class="muted">Ingredientes do cardápio que não estão na sua geladeira.</p></div><span class="section-emoji">🛍️</span></div>
+          <div class="shopping-toolbar"><button id="refresh-shopping" class="button button-secondary">Atualizar lista</button><button id="copy-shopping" class="button button-primary">Copiar lista</button></div>
+          <div id="shopping-list" class="shopping-list"></div>
+        </section>
+
+        <section id="view-prep" class="view hidden">
+          <div class="section-heading"><div><div class="eyebrow">COZINHA MAIS INTELIGENTE</div><h2>Preparação esperta</h2><p class="muted">Veja ingredientes compartilhados e ideias para adiantar etapas.</p></div><span class="section-emoji">🧑‍🍳</span></div>
+          <div id="prep-content" class="prep-content"></div>
+        </section>
+      </section>
+    </main>
+    <footer>feito com carinho <span>♡</span> panelinha</footer>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </div>
+</body>
+</html>
